@@ -22,15 +22,26 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.Style
+import org.ramani.compose.CameraPosition
+import org.ramani.compose.MapLibre
 
-data class LatLng(val latitude: Double, val longitude: Double)
+//data class LatLng(var latitude: Double, var longitude: Double)
 
 class MainActivity : ComponentActivity(), LocationListener {
+
     var styleBuilder = Style.Builder().fromUri ("https://tiles.openfreemap.org/styles/bright")
     val gpsViewModel : GPSViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkPermissions()
@@ -41,6 +52,14 @@ class MainActivity : ComponentActivity(), LocationListener {
                 gpsViewModel.latLngLiveData.observe(this) {
                     latLngState.value = it
                 }
+                GPSLatLngEnter()
+                MapLibre(modifier = Modifier.fillMaxSize(),
+                    styleBuilder = styleBuilder,
+                    cameraPosition = CameraPosition(
+                        target = latLngState.value,
+                        zoom = 14.0
+                    )
+                )
             }
         }
     }
@@ -76,7 +95,7 @@ class MainActivity : ComponentActivity(), LocationListener {
     // the location changes
     override fun onLocationChanged(location: Location) {
         Toast.makeText(this, "Latitude: ${location.latitude}, Longitude: ${location.longitude}", Toast.LENGTH_SHORT).show()
-        gpsViewModel.latLng = LatLng(location.latitude, location.longitude)
+        // gpsViewModel.latLng = LatLng(location.latitude, location.longitude)
     }
 
     // Optional - runs when the user enables the GPS
@@ -97,6 +116,28 @@ class MainActivity : ComponentActivity(), LocationListener {
             Text("Latitude : ${latLngState.latitude}")
             Text("Longitude : ${latLngState.longitude}")
         }
+    }
+
+    @Composable
+    fun GPSLatLngEnter() {
+        //var latLngState = remember { mutableStateOf(LatLng(0.0, 0.0)) }
+        var lat = remember { mutableStateOf(0.0)}
+        var lng = remember { mutableStateOf(0.0)}
+        Column {
+                Row (modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    OutlinedTextField{modifier = Mofifier.weight(2f),
+                        value = lng.value, onValueChange = {label = Text("Latitude : "))
+
+                    TextField(label = {"Longitude : ${lng.value}"})
+                    Button(onClick = {
+                      //  latLngState.value.latitude = lat.value,
+                     //   latLngState.value.longitude = lng.value
+                        gpsViewModel.latLng = LatLng(lat.value, lng.value)
+                    }, content={Text("Test")})
+
+                }
+        }
+
     }
 
 }

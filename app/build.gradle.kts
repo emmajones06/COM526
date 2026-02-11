@@ -49,7 +49,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.ramani.maps)
+    implementation(libs.maplibre.vulkan)
+    implementation(libs.ramani.maps) {
+        exclude(group = "org.maplibre.gl", module="android-sdk")
+    }
     implementation(libs.play.services.maps)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
