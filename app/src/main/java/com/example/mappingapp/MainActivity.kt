@@ -34,6 +34,9 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.Style
 import org.ramani.compose.CameraPosition
 import org.ramani.compose.MapLibre
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
 //data class LatLng(var latitude: Double, var longitude: Double)
 
@@ -47,19 +50,19 @@ class MainActivity : ComponentActivity(), LocationListener {
         checkPermissions()
         setContent {
             MappingAppTheme {
+                val navController = rememberNavController()
                 val latLngState = remember { mutableStateOf(LatLng(0.0, 0.0)) }
-                GPSDisplayer(latLngState.value) // imagine GPSDisplayer is our own composable
                 gpsViewModel.latLngLiveData.observe(this) {
                     latLngState.value = it
                 }
-                GPSLatLngEnter()
-                MapLibre(modifier = Modifier.fillMaxSize(),
-                    styleBuilder = styleBuilder,
-                    cameraPosition = CameraPosition(
-                        target = latLngState.value,
-                        zoom = 14.0
-                    )
-                )
+                NavHost(navController=navController, startDestination="mainScreen") {
+                    composable("mainScreen") {
+                        MainScreenComposable(latLngState.value)
+                    }
+                    composable("settingsScreen") {
+                        SettingsComposable({ })
+                    }
+                }
             }
         }
     }
@@ -121,23 +124,51 @@ class MainActivity : ComponentActivity(), LocationListener {
     @Composable
     fun GPSLatLngEnter() {
         //var latLngState = remember { mutableStateOf(LatLng(0.0, 0.0)) }
-        var lat = remember { mutableStateOf(0.0)}
-        var lng = remember { mutableStateOf(0.0)}
+        var lat = remember { mutableStateOf("0.0")}
+        var lng = remember { mutableStateOf("0.0")}
         Column {
-                Row (modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    OutlinedTextField{modifier = Mofifier.weight(2f),
-                        value = lng.value, onValueChange = {label = Text("Latitude : "))
+                Row (modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(modifier = Modifier.weight(2f),
+                        value = lat.value, onValueChange = { lat.value = it })
 
-                    TextField(label = {"Longitude : ${lng.value}"})
+                    OutlinedTextField(modifier = Modifier.weight(2f),
+                        value = lng.value, onValueChange = { lng.value = it })
+
+                    // do the same for the longitude
                     Button(onClick = {
                       //  latLngState.value.latitude = lat.value,
                      //   latLngState.value.longitude = lng.value
-                        gpsViewModel.latLng = LatLng(lat.value, lng.value)
+                        gpsViewModel.latLng = LatLng(lat.value.toDoubleOrNull() ?: 0.0, lng.value.toDoubleOrNull() ?: 0.0)
                     }, content={Text("Test")})
 
                 }
         }
 
+    }
+
+    @Composable
+    fun MainScreenComposable(latLng: LatLng) {
+
+        GPSDisplayer(latLng) // imagine GPSDisplayer is our own composable
+
+        GPSLatLngEnter()
+        MapLibre(modifier = Modifier.fillMaxSize(),
+            styleBuilder = styleBuilder,
+            cameraPosition = CameraPosition(
+                target = latLng,
+                zoom = 14.0
+            )
+        )
+    }
+
+    @Composable
+    fun SettingsComposable(onSettingsAltered: () -> Unit) {
+        Column {
+            Text("Settings")
+            Button(onClick = { onSettingsAltered() }) {
+                Text("Altered settings")
+            }
+        }
     }
 
 }
