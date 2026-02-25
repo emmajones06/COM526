@@ -21,15 +21,20 @@ import android.location.LocationManager
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextField
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.Style
 import org.ramani.compose.CameraPosition
@@ -42,8 +47,8 @@ import androidx.navigation.compose.rememberNavController
 
 class MainActivity : ComponentActivity(), LocationListener {
 
-    var styleBuilder = Style.Builder().fromUri ("https://tiles.openfreemap.org/styles/bright")
-    val gpsViewModel : GPSViewModel by viewModels()
+    var styleBuilder = Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright")
+    val gpsViewModel: GPSViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,21 +56,30 @@ class MainActivity : ComponentActivity(), LocationListener {
         setContent {
             MappingAppTheme {
                 val navController = rememberNavController()
-                val latLngState = remember { mutableStateOf(LatLng(0.0, 0.0)) }
+                var latLngState by remember { mutableStateOf(LatLng(0.0, 0.0)) }
                 gpsViewModel.latLngLiveData.observe(this) {
-                    latLngState.value = it
+                    latLngState = it
                 }
-                NavHost(navController=navController, startDestination="mainScreen") {
+                NavHost(navController = navController, startDestination = "mainScreen") {
                     composable("mainScreen") {
-                        MainScreenComposable(latLngState.value)
+                        MainScreenComposable(
+                            latLngState, styleBuilder,
+                            settingsCallback = {
+                                navController.navigate("settingsScreen")
+                            }
+                        )
                     }
                     composable("settingsScreen") {
-                        SettingsComposable({ })
+                        SettingsComposable(updateLatLngCallback = { lat, lng ->
+                            gpsViewModel.latLng = LatLng(lat, lng)
+                            navController.navigate("mainScreen")
+                        })
                     }
                 }
             }
         }
     }
+
 
     // Checks whether GPS permission has been granted
     // If it has, start the GPS
@@ -73,17 +87,18 @@ class MainActivity : ComponentActivity(), LocationListener {
     fun checkPermissions() {
         val requiredPermission = Manifest.permission.ACCESS_FINE_LOCATION
 
-        if(checkSelfPermission(requiredPermission) == PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(requiredPermission) == PackageManager.PERMISSION_GRANTED) {
             startGPS()
         } else {
-            val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-                if(isGranted) {
-                    startGPS()
-                } else {
-                    // Permission not granted
-                    Toast.makeText(this, "GPS permission not granted", Toast.LENGTH_LONG).show()
+            val permissionLauncher =
+                registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                    if (isGranted) {
+                        startGPS()
+                    } else {
+                        // Permission not granted
+                        Toast.makeText(this, "GPS permission not granted", Toast.LENGTH_LONG).show()
+                    }
                 }
-            }
             permissionLauncher.launch(requiredPermission)
         }
     }
@@ -91,14 +106,14 @@ class MainActivity : ComponentActivity(), LocationListener {
     @SuppressLint("MissingPermission")
     fun startGPS() {
         val mgr = getSystemService(LOCATION_SERVICE) as LocationManager
-        mgr.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, this )
+        mgr.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, this)
     }
 
     // Compulsory - provide onLocationChanged() method which runs whenever
     // the location changes
     override fun onLocationChanged(location: Location) {
-        Toast.makeText(this, "Latitude: ${location.latitude}, Longitude: ${location.longitude}", Toast.LENGTH_SHORT).show()
-        // gpsViewModel.latLng = LatLng(location.latitude, location.longitude)
+        // Toast.makeText(this, "Latitude: ${location.latitude}, Longitude: ${location.longitude}", Toast.LENGTH_SHORT).show()
+        gpsViewModel.latLng = LatLng(location.latitude, location.longitude)
     }
 
     // Optional - runs when the user enables the GPS
@@ -112,62 +127,74 @@ class MainActivity : ComponentActivity(), LocationListener {
         Toast.makeText(this, "GPS disabled", Toast.LENGTH_LONG).show()
     }
 
-    @Composable
-    fun GPSDisplayer(latLngState : LatLng) {
-        // Composable to display lat and long
-        Column {
-            Text("Latitude : ${latLngState.latitude}")
-            Text("Longitude : ${latLngState.longitude}")
-        }
-    }
 
-    @Composable
-    fun GPSLatLngEnter() {
-        //var latLngState = remember { mutableStateOf(LatLng(0.0, 0.0)) }
-        var lat = remember { mutableStateOf("0.0")}
-        var lng = remember { mutableStateOf("0.0")}
-        Column {
-                Row (modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(modifier = Modifier.weight(2f),
-                        value = lat.value, onValueChange = { lat.value = it })
+}
 
-                    OutlinedTextField(modifier = Modifier.weight(2f),
-                        value = lng.value, onValueChange = { lng.value = it })
+@Composable
+fun MainScreenComposable(
+    latLng: LatLng,
+    styleBuilder: Style.Builder,
+    settingsCallback: () -> Unit
+) {
 
-                    // do the same for the longitude
-                    Button(onClick = {
-                      //  latLngState.value.latitude = lat.value,
-                     //   latLngState.value.longitude = lng.value
-                        gpsViewModel.latLng = LatLng(lat.value.toDoubleOrNull() ?: 0.0, lng.value.toDoubleOrNull() ?: 0.0)
-                    }, content={Text("Test")})
+    Column {
+        Row{GPSDisplayer(latLng, settingsCallback)} // imagine GPSDisplayer is our own composable
 
-                }
-        }
-
-    }
-
-    @Composable
-    fun MainScreenComposable(latLng: LatLng) {
-
-        GPSDisplayer(latLng) // imagine GPSDisplayer is our own composable
-
-        GPSLatLngEnter()
-        MapLibre(modifier = Modifier.fillMaxSize(),
+        Row{MapLibre(
+            modifier = Modifier.fillMaxSize(),
             styleBuilder = styleBuilder,
             cameraPosition = CameraPosition(
                 target = latLng,
                 zoom = 14.0
             )
-        )
+        )}
     }
+}
 
-    @Composable
-    fun SettingsComposable(onSettingsAltered: () -> Unit) {
-        Column {
+@Composable
+fun SettingsComposable(updateLatLngCallback: (Double, Double) -> Unit) {
+    //    Column {
+    //      Text("Settings")
+    //    Button(onClick = { onSettingsAltered() }) {
+    //      Text("Altered settings")
+    //}
+    //}
+    GPSLatLngEnter(updateLatLngCallback)
+}
+
+@Composable
+fun GPSDisplayer(latLngState: LatLng, settingsCallback: () -> Unit) {
+    // Composable to display lat and long
+    Column {
+        //Text("Latitude : ${latLngState.latitude}")
+        //Text("Longitude : ${latLngState.longitude}")
+        Button(onClick = { settingsCallback() }) {
             Text("Settings")
-            Button(onClick = { onSettingsAltered() }) {
-                Text("Altered settings")
-            }
+        }
+    }
+}
+
+@Composable
+fun GPSLatLngEnter(updateLatLngCallback: (Double, Double) -> Unit) {
+    var lat by remember { mutableStateOf("0.0") }
+    var lng by remember { mutableStateOf("0.0") }
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                modifier = Modifier.weight(2f),
+                value = lat, onValueChange = { lat = it })
+
+            OutlinedTextField(
+                modifier = Modifier.weight(2f),
+                value = lng, onValueChange = { lng = it })
+
+            Button(onClick = {
+                updateLatLngCallback(lat.toDoubleOrNull() ?: 0.0, lng.toDoubleOrNull() ?: 0.0)
+            }, content = { Text("Test") })
+
         }
     }
 
